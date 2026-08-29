@@ -8,6 +8,7 @@
  *   pnpm import                 # import catalog + mirror images
  *   pnpm import --skip-images   # catalog only, keep remote Big Cartel URLs
  *   pnpm import --dry-run       # report what would change, write nothing
+ *   pnpm import --remirror      # re-download and re-point images already recorded
  */
 import { config } from "dotenv";
 import { resolve, extname } from "node:path";
@@ -73,6 +74,15 @@ interface BcProduct {
 const args = new Set(process.argv.slice(2));
 const SKIP_IMAGES = args.has("--skip-images");
 const DRY_RUN = args.has("--dry-run");
+/**
+ * Re-download images that are already recorded and rewrite their URLs.
+ *
+ * Needed because a normal run skips any image whose source URL is already
+ * present, which is right for re-runs but wrong after switching storage: a
+ * catalog first imported with --skip-images holds remote Big Cartel URLs, and
+ * without this flag a later run with a Blob token would never mirror them.
+ */
+const REMIRROR = args.has("--remirror");
 
 const SOURCE = resolve(ROOT, "data/products.json");
 const LOCAL_MEDIA_DIR = resolve(ROOT, "apps/web/public/media");
@@ -213,6 +223,7 @@ async function main() {
     productsUpdated: 0,
     sizes: 0,
     imagesMirrored: 0,
+    imagesRewritten: 0,
     imagesSkipped: 0,
     styleGroupsDropped: 0,
     saleFlagsIgnored: 0,
@@ -352,7 +363,9 @@ async function main() {
       );
 
       await mapLimit(p.images, 4, async (img, index) => {
-        if (bySource.has(img.url)) {
+        const existingId = bySource.get(img.url);
+
+        if (existingId !== undefined && !(REMIRROR && !SKIP_IMAGES)) {
           stats.imagesSkipped++;
           return;
         }
@@ -365,12 +378,25 @@ async function main() {
           if (result.mirrored) stats.imagesMirrored++;
         }
 
+        // Alt text has to say something useful for screen readers; the product
+        // name plus position is the best we can derive.
+        const alt = index === 0 ? p.name : `${p.name} — view ${index + 1}`;
+
+        if (existingId !== undefined) {
+          // Re-mirroring: keep the row (and anything referencing it), just
+          // point it at the new storage.
+          await db
+            .update(productImages)
+            .set({ url, alt, sortPosition: index })
+            .where(eq(productImages.id, existingId));
+          stats.imagesRewritten++;
+          return;
+        }
+
         await db.insert(productImages).values({
           productId,
           url,
-          // Alt text has to say something useful for screen readers; the
-          // product name plus position is the best we can derive.
-          alt: index === 0 ? p.name : `${p.name} — view ${index + 1}`,
+          alt,
           width: img.width,
           height: img.height,
           sortPosition: index,
@@ -386,6 +412,7 @@ async function main() {
   console.log(`  products updated:  ${stats.productsUpdated}`);
   console.log(`  sizes:             ${stats.sizes}`);
   console.log(`  images mirrored:   ${stats.imagesMirrored}`);
+  console.log(`  images rewritten:  ${stats.imagesRewritten}`);
   console.log(`  images skipped:    ${stats.imagesSkipped} (already present)`);
   console.log(`  Style groups dropped: ${stats.styleGroupsDropped}`);
   console.log(`  unusable on_sale flags ignored: ${stats.saleFlagsIgnored}`);

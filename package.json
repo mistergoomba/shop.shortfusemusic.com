@@ -21,7 +21,11 @@
     "db:seed": "pnpm --filter @sf/db seed",
     "db:reset": "pnpm --filter @sf/db reset",
     "catalog:import": "tsx scripts/import-big-cartel.ts",
-    "admin:password": "tsx scripts/hash-password.ts"
+    "admin:password": "tsx scripts/hash-password.ts",
+    "db:migrate:neon": "DATABASE_URL=\"$(grep '^NEON_DATABASE_URL=' .env | cut -d= -f2- | tr -d '\\\"')\" pnpm --filter @sf/db migrate",
+    "db:seed:neon": "DATABASE_URL=\"$(grep '^NEON_DATABASE_URL=' .env | cut -d= -f2- | tr -d '\\\"')\" pnpm --filter @sf/db seed",
+    "catalog:import:neon": "DATABASE_URL=\"$(grep '^NEON_DATABASE_URL=' .env | cut -d= -f2- | tr -d '\\\"')\" tsx scripts/import-big-cartel.ts",
+    "db:studio:neon": "DATABASE_URL=\"$(grep '^NEON_DATABASE_URL=' .env | cut -d= -f2- | tr -d '\\\"')\" pnpm --filter @sf/db studio"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

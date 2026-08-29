@@ -3,6 +3,5 @@
   "compilerOptions": {
     "noEmit": true
   },
-  // No rootDir: drizzle.config.ts sits beside src/, and nothing is emitted.
   "include": ["src/**/*.ts", "drizzle.config.ts"]
 }
