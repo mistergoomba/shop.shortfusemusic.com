@@ -239,6 +239,12 @@ export const orders = pgTable(
     }),
     shippedEmailSentAt: timestamp("shipped_email_sent_at", { withTimezone: true }),
 
+    // Resend's message ids. "Accepted by Resend" is not "landed in an inbox":
+    // it can still bounce or be filtered afterwards, and without the id there
+    // is no way to look up what happened to a specific message.
+    confirmationEmailId: varchar("confirmation_email_id", { length: 255 }),
+    shippedEmailId: varchar("shipped_email_id", { length: 255 }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     paidAt: timestamp("paid_at", { withTimezone: true }),

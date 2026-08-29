@@ -14,6 +14,10 @@ import { Price } from "@/components/Price";
 import { ProductGallery } from "@/components/ProductGallery";
 import { ProductGrid } from "@/components/ProductGrid";
 import { SectionHeading } from "@/components/SectionHeading";
+import {
+  ProductDetailsSlot,
+  RelatedSlot,
+} from "@/components/ProductDetailsSlot";
 
 export const revalidate = 300;
 
@@ -141,15 +145,42 @@ export default async function ProductPage({
 
           <AddToCart product={product} />
 
-          {description && (
-            <div className="border-t border-ink-line pt-6">
-              <h2 className="mb-3 text-lg text-bone">Details</h2>
-              <div
-                className="prose-sf text-sm"
-                dangerouslySetInnerHTML={{ __html: description }}
-              />
-            </div>
-          )}
+          {/* Shows the description normally; swaps to the "added to cart"
+              confirmation, the two next-step buttons, and the suggestions once
+              the item is in the cart. The suggestions are passed in already
+              rendered because ProductGrid reaches into server-only catalog
+              helpers and cannot itself be a client component. */}
+          <ProductDetailsSlot
+            productId={product.id}
+            productName={product.name}
+            categoryHref={
+              product.categorySlug ? `/category/${product.categorySlug}` : "/"
+            }
+            related={
+              related.length > 0 ? (
+                <section className="mt-8" aria-labelledby="related-inline">
+                  <h2
+                    id="related-inline"
+                    className="rule-blood mb-6 text-xl text-bone"
+                  >
+                    You Might Also Dig
+                  </h2>
+                  <ProductGrid products={related} compact />
+                </section>
+              ) : null
+            }
+            description={
+              description ? (
+                <div className="border-t border-ink-line pt-6">
+                  <h2 className="mb-3 text-lg text-bone">Details</h2>
+                  <div
+                    className="prose-sf text-sm"
+                    dangerouslySetInnerHTML={{ __html: description }}
+                  />
+                </div>
+              ) : null
+            }
+          />
 
           <p className="text-xs text-bone-faint">
             Flat-rate shipping calculated at checkout. Ships worldwide.
@@ -158,12 +189,14 @@ export default async function ProductPage({
       </div>
 
       {related.length > 0 && (
-        <section className="mt-16" aria-labelledby="related-heading">
-          <SectionHeading>
-            <span id="related-heading">You Might Also Dig</span>
-          </SectionHeading>
-          <ProductGrid products={related} />
-        </section>
+        <RelatedSlot productId={product.id}>
+          <section className="mt-16" aria-labelledby="related-heading">
+            <SectionHeading>
+              <span id="related-heading">You Might Also Dig</span>
+            </SectionHeading>
+            <ProductGrid products={related} />
+          </section>
+        </RelatedSlot>
       )}
     </div>
   );

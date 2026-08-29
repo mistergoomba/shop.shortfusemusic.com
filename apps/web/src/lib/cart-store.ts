@@ -36,6 +36,13 @@ interface CartState {
   acceptedOfferId: number | null;
   /** Set once the store has rehydrated, to avoid a server/client mismatch. */
   hydrated: boolean;
+  /**
+   * The product whose "added to cart" confirmation is currently showing on its
+   * own product page. Transient UI state, deliberately excluded from
+   * `partialize` so it is never persisted -- coming back to the site tomorrow
+   * should not greet you with a stale "added!" panel.
+   */
+  justAddedProductId: number | null;
 
   add: (item: CartItem) => void;
   remove: (productId: number, sizeId: number | null) => void;
@@ -44,6 +51,8 @@ interface CartState {
   clearOffer: () => void;
   clear: () => void;
   markHydrated: () => void;
+  setJustAdded: (productId: number) => void;
+  clearJustAdded: () => void;
 }
 
 const MAX_QTY = 99;
@@ -54,6 +63,7 @@ export const useCart = create<CartState>()(
       items: [],
       acceptedOfferId: null,
       hydrated: false,
+      justAddedProductId: null,
 
       add: (item) =>
         set((state) => {
@@ -104,8 +114,10 @@ export const useCart = create<CartState>()(
 
       acceptOffer: (offerId) => set({ acceptedOfferId: offerId }),
       clearOffer: () => set({ acceptedOfferId: null }),
-      clear: () => set({ items: [], acceptedOfferId: null }),
+      clear: () => set({ items: [], acceptedOfferId: null, justAddedProductId: null }),
       markHydrated: () => set({ hydrated: true }),
+      setJustAdded: (productId) => set({ justAddedProductId: productId }),
+      clearJustAdded: () => set({ justAddedProductId: null }),
     }),
     {
       name: "shortfuse-cart",

@@ -13,6 +13,7 @@ import type { ProductDetailView } from "@/lib/catalog";
 export function AddToCart({ product }: { product: ProductDetailView }) {
   const router = useRouter();
   const add = useCart((s) => s.add);
+  const setJustAdded = useCart((s) => s.setJustAdded);
 
   const hasSizes = product.sizes.length > 0;
   const firstAvailable = product.sizes.find((s) => isPurchasable(s.availability));
@@ -50,6 +51,9 @@ export function AddToCart({ product }: { product: ProductDetailView }) {
       imageUrl: product.images[0]?.url ?? null,
     });
     setAdded(true);
+    // Drives the confirmation panel below, which persists after this button
+    // reverts to its normal label.
+    setJustAdded(product.id);
     router.refresh();
     window.setTimeout(() => setAdded(false), 2500);
   }

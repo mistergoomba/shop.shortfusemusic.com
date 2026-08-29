@@ -149,8 +149,9 @@ export async function sendOrderConfirmation(
   if (result.ok) {
     await db
       .update(orders)
-      .set({ confirmationEmailSentAt: new Date() })
+      .set({ confirmationEmailSentAt: new Date(), confirmationEmailId: result.id })
       .where(eq(orders.id, orderId));
+    console.log(`[email] confirmation ${order.orderNumber} accepted, id=${result.id}`);
   }
   return result;
 }
@@ -179,8 +180,9 @@ export async function sendOrderShipped(
   if (result.ok) {
     await db
       .update(orders)
-      .set({ shippedEmailSentAt: new Date() })
+      .set({ shippedEmailSentAt: new Date(), shippedEmailId: result.id })
       .where(eq(orders.id, orderId));
+    console.log(`[email] shipped ${order.orderNumber} accepted, id=${result.id}`);
   }
   return result;
 }
