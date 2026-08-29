@@ -41,6 +41,7 @@
     "@sf/db": "workspace:*",
     "@sf/shared": "workspace:*",
     "@types/node": "^22.15.3",
+    "@vercel/blob": "^2.8.0",
     "dotenv": "^17.4.2",
     "resend": "^6.25.0",
     "stripe": "^22.6.0",

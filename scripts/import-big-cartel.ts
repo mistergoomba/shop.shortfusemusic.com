@@ -9,6 +9,7 @@
  *   pnpm import --skip-images   # catalog only, keep remote Big Cartel URLs
  *   pnpm import --dry-run       # report what would change, write nothing
  *   pnpm import --remirror      # re-download and re-point images already recorded
+ *   pnpm import --refresh-existing  # also overwrite catalog fields on existing products
  */
 import { config } from "dotenv";
 import { resolve, extname } from "node:path";
@@ -83,6 +84,16 @@ const DRY_RUN = args.has("--dry-run");
  * without this flag a later run with a Blob token would never mirror them.
  */
 const REMIRROR = args.has("--remirror");
+/**
+ * Overwrite catalog fields on products that already exist.
+ *
+ * Off by default, and that default matters: once the catalog is imported the
+ * admin owns it. Big Cartel's export is a frozen snapshot, so re-importing
+ * would revert stock changes, wipe sale prices (the export has none) and undo
+ * renames. Even with this flag on, the fields the admin owns -- availability,
+ * sale price, active, featured, sort position -- are never touched.
+ */
+const REFRESH_EXISTING = args.has("--refresh-existing");
 
 const SOURCE = resolve(ROOT, "data/products.json");
 const LOCAL_MEDIA_DIR = resolve(ROOT, "apps/web/public/media");
@@ -260,6 +271,7 @@ async function main() {
     categories: 0,
     productsCreated: 0,
     productsUpdated: 0,
+    productsLeftAlone: 0,
     sizes: 0,
     imagesMirrored: 0,
     imagesRewritten: 0,
@@ -369,10 +381,27 @@ async function main() {
     let productId: number;
     if (existing.length > 0) {
       productId = existing[0]!.id;
-      // `featured` is deliberately not overwritten -- it is an editorial
-      // choice made in admin, not something Big Cartel knows about.
-      await db.update(products).set(values).where(eq(products.id, productId));
-      stats.productsUpdated++;
+
+      if (REFRESH_EXISTING) {
+        // Only the fields Big Cartel is genuinely the source of. Availability,
+        // sale price, active, featured and sort position stay as the admin
+        // left them -- re-running an import must never change what is for
+        // sale or what it costs.
+        await db
+          .update(products)
+          .set({
+            name: values.name,
+            slug: values.slug,
+            description: values.description,
+            priceCents: values.priceCents,
+            categoryId: values.categoryId,
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, productId));
+        stats.productsUpdated++;
+      } else {
+        stats.productsLeftAlone++;
+      }
     } else {
       const [row] = await db
         .insert(products)
@@ -461,6 +490,7 @@ async function main() {
   console.log(`  categories:        ${stats.categories}`);
   console.log(`  products created:  ${stats.productsCreated}`);
   console.log(`  products updated:  ${stats.productsUpdated}`);
+  console.log(`  products untouched: ${stats.productsLeftAlone} (admin owns them; --refresh-existing to overwrite)`);
   console.log(`  sizes:             ${stats.sizes}`);
   console.log(`  images mirrored:   ${stats.imagesMirrored}`);
   console.log(`  images rewritten:  ${stats.imagesRewritten}`);
