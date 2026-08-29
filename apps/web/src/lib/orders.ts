@@ -11,7 +11,7 @@ import {
   asc,
 } from "@sf/db";
 import type { PricedCart } from "@sf/core";
-import { sendOrderConfirmation } from "./email/send";
+import { sendMerchantOrderAlert, sendOrderConfirmation } from "./email/send";
 
 /**
  * Human-friendly order number, e.g. "SF-1042".
@@ -160,8 +160,20 @@ export async function applyPaidCheckoutSession(
     return { outcome: "skipped", reason: `already ${existing.status}` };
   }
 
-  const address = session.collected_information?.shipping_details?.address ?? null;
-  const shipName = session.collected_information?.shipping_details?.name ?? null;
+  /**
+   * Stripe moved the collected shipping address: older API versions expose it
+   * at `session.shipping_details`, newer ones nest it under
+   * `collected_information`. A webhook endpoint pins its own API version, so
+   * which shape arrives depends on a dropdown in the Stripe dashboard rather
+   * than on anything in this repo. Read both — getting this wrong means paid
+   * orders with no address to ship to, and no error anywhere.
+   */
+  const legacy = (session as { shipping_details?: Stripe.Checkout.Session.CollectedInformation.ShippingDetails | null })
+    .shipping_details;
+  const shipping = session.collected_information?.shipping_details ?? legacy ?? null;
+
+  const address = shipping?.address ?? null;
+  const shipName = shipping?.name ?? null;
 
   await db
     .update(orders)
@@ -189,8 +201,11 @@ export async function applyPaidCheckoutSession(
     .where(eq(orders.id, orderId));
 
   // After the status update, and never allowed to throw: the payment is
-  // already recorded, so a mail failure must not undo or block it.
+  // already recorded, so a mail failure must not undo or block it. The two
+  // sends are independent -- the band still gets told even if the customer's
+  // address bounces, and vice versa.
   await sendOrderConfirmation(orderId);
+  await sendMerchantOrderAlert(orderId);
 
   return { outcome: "applied", orderNumber: existing.orderNumber };
 }

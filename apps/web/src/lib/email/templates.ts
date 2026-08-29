@@ -247,3 +247,93 @@ export function orderShippedEmail(o: EmailOrder, siteUrl: string) {
     text,
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Merchant alert                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * "You sold something" — sent to the band, not the customer.
+ *
+ * Deliberately front-loads what you need to pack the order: what was bought,
+ * in what size, and where it goes. The subject line carries the order number
+ * and total so it is scannable from a phone lock screen without opening it.
+ */
+export function merchantOrderAlertEmail(
+  o: EmailOrder,
+  siteUrl: string,
+  adminOrderUrl: string,
+) {
+  const units = o.items.reduce((n, i) => n + i.quantity, 0);
+
+  const address = o.shipLine1
+    ? [
+        o.shipName,
+        o.shipLine1,
+        o.shipLine2,
+        [o.shipCity, o.shipState, o.shipPostalCode].filter(Boolean).join(", "),
+        o.shipCountry,
+      ]
+        .filter(Boolean)
+        .map((l) => esc(String(l)))
+        .join("<br>")
+    : '<span style="color:' + DIM + ';">No address on the order yet</span>';
+
+  const body = `
+    <p style="margin:0 0 18px;font-size:15px;color:${BONE};line-height:1.6;">
+      <strong style="color:${BLOOD};">${esc(o.orderNumber)}</strong> &mdash;
+      ${units} item${units === 1 ? "" : "s"}, ${formatCents(o.totalCents)}.
+    </p>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${itemRows(o.items)}</table>
+    ${totalsTable(o)}
+
+    <p style="margin:22px 0 0;font-size:13px;color:${DIM};line-height:1.7;">
+      <strong style="color:${BONE};">Ship to</strong><br>${address}
+    </p>
+
+    <p style="margin:14px 0 0;font-size:13px;color:${DIM};">
+      <strong style="color:${BONE};">Customer</strong><br>
+      ${esc(o.customerName ?? "—")}<br>
+      <a href="mailto:${esc(o.email)}" style="color:${BLOOD};">${esc(o.email)}</a>
+    </p>
+
+    <p style="margin:24px 0 0;">
+      <a href="${adminOrderUrl}" style="display:inline-block;background:${BLOOD};color:${BONE};text-decoration:none;padding:12px 22px;font-size:14px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">Open in admin</a>
+    </p>`;
+
+  const text = [
+    `${o.orderNumber} - ${units} item${units === 1 ? "" : "s"}, ${formatCents(o.totalCents)}`,
+    ``,
+    ...o.items.map(
+      (i) =>
+        `  ${i.quantity} x ${i.productName}${i.sizeLabel ? ` (${i.sizeLabel})` : ""}${i.isOffer ? " [add-on]" : ""}  ${formatCents(i.lineTotalCents)}`,
+    ),
+    ``,
+    `  Subtotal: ${formatCents(o.subtotalCents)}`,
+    ...(o.discountCents > 0 ? [`  Discount: -${formatCents(o.discountCents)}`] : []),
+    `  Shipping: ${o.shippingCents === 0 ? "Free" : formatCents(o.shippingCents)}`,
+    `  Total: ${formatCents(o.totalCents)}`,
+    ``,
+    `Ship to:`,
+    ...(o.shipLine1
+      ? [
+          `  ${o.shipName ?? ""}`,
+          `  ${o.shipLine1}`,
+          ...(o.shipLine2 ? [`  ${o.shipLine2}`] : []),
+          `  ${[o.shipCity, o.shipState, o.shipPostalCode].filter(Boolean).join(", ")}`,
+          `  ${o.shipCountry ?? ""}`,
+        ]
+      : ["  (no address yet)"]),
+    ``,
+    `Customer: ${o.customerName ?? "-"} <${o.email}>`,
+    ``,
+    `Open in admin: ${adminOrderUrl}`,
+  ].join("\n");
+
+  return {
+    subject: `New order ${o.orderNumber} — ${formatCents(o.totalCents)}`,
+    html: shell(siteUrl, "You sold something", body),
+    text,
+  };
+}

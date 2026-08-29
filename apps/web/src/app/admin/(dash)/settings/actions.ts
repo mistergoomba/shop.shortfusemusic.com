@@ -33,6 +33,8 @@ export async function saveSettings(
     // Blank means "no free shipping offer", which is different from zero.
     freeShippingThresholdCents:
       thresholdRaw === "" ? null : dollarsToCents(thresholdRaw),
+    orderNotificationEmails:
+      String(formData.get("orderNotificationEmails") ?? "").trim() || null,
   });
 
   if (!parsed.success) {

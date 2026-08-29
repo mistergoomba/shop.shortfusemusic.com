@@ -20,6 +20,7 @@ export default async function SettingsPage() {
           shippingIntlCents: settings.shippingIntlCents,
           internationalShippingEnabled: settings.internationalShippingEnabled,
           freeShippingThresholdCents: settings.freeShippingThresholdCents,
+          orderNotificationEmails: settings.orderNotificationEmails,
         }}
       />
     </>

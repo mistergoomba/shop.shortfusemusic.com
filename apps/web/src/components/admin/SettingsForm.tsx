@@ -13,6 +13,7 @@ interface Initial {
   shippingIntlCents: number;
   internationalShippingEnabled: boolean;
   freeShippingThresholdCents: number | null;
+  orderNotificationEmails: string | null;
 }
 
 function dollars(cents: number): string {
@@ -64,6 +65,27 @@ export function SettingsForm({ initial }: { initial: Initial }) {
               required
             />
           </div>
+        </div>
+      </Card>
+
+      <Card title="Order notifications">
+        <p className="mb-4 text-sm text-bone-faint">
+          Who gets emailed the moment an order is paid. One address per line, or
+          separated by commas. Leave empty and it falls back to the contact
+          email above.
+        </p>
+        <div>
+          <label htmlFor="orderNotificationEmails" className={labelClass}>
+            Notify these addresses
+          </label>
+          <textarea
+            id="orderNotificationEmails"
+            name="orderNotificationEmails"
+            rows={3}
+            defaultValue={initial.orderNotificationEmails ?? ""}
+            placeholder={"info@shortfusemusic.com\nsomeone@example.com"}
+            className={`${inputClass} min-h-20`}
+          />
         </div>
       </Card>
 

@@ -184,6 +184,12 @@ export const storeSettings = pgTable("store_settings", {
     .default(true),
   /** null = no free shipping offer. */
   freeShippingThresholdCents: integer("free_shipping_threshold_cents"),
+  /**
+   * Comma-separated addresses alerted when an order is paid. Kept here rather
+   * than in an env var so the band can add or drop someone without a redeploy.
+   * Empty falls back to contactEmail.
+   */
+  orderNotificationEmails: text("order_notification_emails"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -244,6 +250,8 @@ export const orders = pgTable(
     // is no way to look up what happened to a specific message.
     confirmationEmailId: varchar("confirmation_email_id", { length: 255 }),
     shippedEmailId: varchar("shipped_email_id", { length: 255 }),
+    /** When the band was alerted about this order. */
+    merchantNotifiedAt: timestamp("merchant_notified_at", { withTimezone: true }),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

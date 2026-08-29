@@ -1,8 +1,10 @@
 import "server-only";
 import { Resend } from "resend";
-import { getDb, orders, orderItems, eq, asc } from "@sf/db";
+import { getDb, orders, orderItems, storeSettings, eq, asc } from "@sf/db";
+import { parseEmailList } from "@sf/shared";
 import { env } from "../env";
 import {
+  merchantOrderAlertEmail,
   orderConfirmationEmail,
   orderShippedEmail,
   type EmailOrder,
@@ -185,4 +187,81 @@ export async function sendOrderShipped(
     console.log(`[email] shipped ${order.orderNumber} accepted, id=${result.id}`);
   }
   return result;
+}
+
+/**
+ * Alerts the band that an order came in.
+ *
+ * Recipients come from Store Settings, falling back to the contact email, so
+ * nobody has to redeploy to add a bandmate. Sent alongside the customer's
+ * confirmation and under the same rule: it can never break the order.
+ *
+ * All recipients go on one send. Resend accepts an array, and one message to
+ * three people is both cheaper and easier to reason about than three sends
+ * that could half-fail.
+ */
+export async function sendMerchantOrderAlert(
+  orderId: number,
+  { force = false }: { force?: boolean } = {},
+): Promise<SendResult> {
+  const db = getDb();
+  const existing = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });
+  if (!existing) return { ok: false, reason: "Order not found" };
+  if (existing.merchantNotifiedAt && !force) {
+    return { ok: false, reason: "Already notified" };
+  }
+
+  const [settings] = await db
+    .select()
+    .from(storeSettings)
+    .where(eq(storeSettings.id, 1));
+
+  const recipients = parseEmailList(settings?.orderNotificationEmails);
+  const to = recipients.length > 0 ? recipients : [settings?.contactEmail].filter(Boolean) as string[];
+  if (to.length === 0) {
+    return { ok: false, reason: "No notification recipients configured" };
+  }
+
+  const order = await loadEmailOrder(orderId);
+  if (!order) return { ok: false, reason: "Order not found" };
+
+  const api = resend();
+  if (!api) {
+    console.warn(`[email] merchant alert ${order.orderNumber}: RESEND_API_KEY not set`);
+    return { ok: false, reason: "RESEND_API_KEY is not configured" };
+  }
+
+  const message = merchantOrderAlertEmail(
+    order,
+    env.siteUrl,
+    `${env.siteUrl}/admin/orders/${orderId}`,
+  );
+
+  try {
+    const { data, error } = await api.emails.send({
+      from: fromAddress(),
+      to,
+      subject: message.subject,
+      html: message.html,
+      text: message.text,
+      // So hitting reply goes to the customer, not into the void.
+      replyTo: order.email,
+    });
+    if (error) {
+      console.error(`[email] merchant alert ${order.orderNumber} rejected:`, error.message);
+      return { ok: false, reason: error.message };
+    }
+    await db
+      .update(orders)
+      .set({ merchantNotifiedAt: new Date() })
+      .where(eq(orders.id, orderId));
+    console.log(
+      `[email] merchant alert ${order.orderNumber} accepted, id=${data?.id}, to=${to.join(", ")}`,
+    );
+    return { ok: true, id: data?.id ?? null };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error(`[email] merchant alert ${order.orderNumber} threw:`, reason);
+    return { ok: false, reason };
+  }
 }

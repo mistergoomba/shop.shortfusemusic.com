@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  merchantOrderAlertEmail,
   orderConfirmationEmail,
   orderShippedEmail,
   type EmailOrder,
@@ -177,5 +178,56 @@ describe("orderShippedEmail", () => {
   it("still links back to the order page", () => {
     const mail = orderShippedEmail(order(), SITE);
     expect(mail.html).toContain(`${SITE}/order/abc123def456`);
+  });
+});
+
+describe("merchantOrderAlertEmail", () => {
+  it("puts the order number and total in the subject, for a lock screen", () => {
+    const mail = merchantOrderAlertEmail(order(), SITE, `${SITE}/admin/orders/42`);
+    expect(mail.subject).toBe("New order SF-1042 — $46.00");
+  });
+
+  it("leads with what was sold and where it goes", () => {
+    const mail = merchantOrderAlertEmail(order(), SITE, `${SITE}/admin/orders/42`);
+    expect(mail.html).toContain("Atomic Mutation T-Shirt");
+    expect(mail.html).toContain("2XL");
+    expect(mail.html).toContain("123 Test St");
+    expect(mail.html).toContain("Austin, TX, 78701");
+  });
+
+  it("includes the customer's address so replying reaches them", () => {
+    const mail = merchantOrderAlertEmail(order(), SITE, `${SITE}/admin/orders/42`);
+    expect(mail.html).toContain("fan@example.com");
+  });
+
+  it("links straight to the admin order page", () => {
+    const mail = merchantOrderAlertEmail(order(), SITE, `${SITE}/admin/orders/42`);
+    expect(mail.html).toContain(`${SITE}/admin/orders/42`);
+    expect(mail.text).toContain(`${SITE}/admin/orders/42`);
+  });
+
+  /**
+   * The alert fires from the webhook, which is also what writes the address.
+   * If a session ever arrives without one, the band still needs the email.
+   */
+  it("still sends usefully when there is no address yet", () => {
+    const mail = merchantOrderAlertEmail(
+      order({ shipLine1: null, shipCity: null }),
+      SITE,
+      `${SITE}/admin/orders/42`,
+    );
+    expect(mail.html).toContain("No address on the order yet");
+    expect(mail.text).toContain("(no address yet)");
+    expect(mail.subject).toContain("SF-1042");
+  });
+
+  it("escapes injected markup like the customer emails do", () => {
+    const mail = merchantOrderAlertEmail(
+      order({ customerName: "<script>alert(1)</script>" }),
+      SITE,
+      `${SITE}/admin/orders/42`,
+    );
+    expect(mail.html).not.toContain("<script");
+    expect(mail.html).toContain("&lt;script&gt;");
   });
 });

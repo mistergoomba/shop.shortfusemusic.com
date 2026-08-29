@@ -152,6 +152,37 @@ export const cartOfferInput = z
   });
 export type CartOfferInput = z.infer<typeof cartOfferInput>;
 
+
+/* ------------------------------------------------------------------ */
+/* Email recipient lists                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Splits an admin-entered recipient list into addresses.
+ *
+ * Accepts commas, semicolons, newlines and stray whitespace, because that is
+ * what people actually paste. Trims, lowercases, and de-duplicates so the same
+ * person cannot be mailed twice by a typo in spacing.
+ */
+export function parseEmailList(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  const seen = new Set<string>();
+  for (const part of raw.split(/[,;\n]/)) {
+    const candidate = part.trim().toLowerCase();
+    if (candidate === "") continue;
+    if (!z.email().safeParse(candidate).success) continue;
+    seen.add(candidate);
+  }
+  return [...seen];
+}
+
+/** True when every non-empty entry in the list is a valid address. */
+export function emailListIsValid(raw: string | null | undefined): boolean {
+  if (!raw || raw.trim() === "") return true;
+  const entries = raw.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
+  return entries.every((e) => z.email().safeParse(e).success);
+}
+
 /* ------------------------------------------------------------------ */
 /* Admin: store settings                                               */
 /* ------------------------------------------------------------------ */
@@ -164,6 +195,14 @@ export const storeSettingsInput = z.object({
   shippingIntlCents: z.number().int().min(0).max(1_000_00),
   internationalShippingEnabled: z.boolean(),
   freeShippingThresholdCents: z.number().int().min(0).nullable().default(null),
+  orderNotificationEmails: z
+    .string()
+    .max(2000)
+    .nullable()
+    .default(null)
+    .refine(emailListIsValid, {
+      message: "One of those isn't a valid email address",
+    }),
 });
 export type StoreSettingsInput = z.infer<typeof storeSettingsInput>;
 
