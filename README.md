@@ -71,7 +71,8 @@ See `.env.example` for the full list. The ones that matter:
 
 | Variable | Notes |
 | --- | --- |
-| `DATABASE_URL` | Local Docker Postgres, or the **pooled** Neon string in production |
+| `DATABASE_URL` | What the app reads. Local Docker Postgres; on Vercel, the **pooled** Neon string |
+| `NEON_DATABASE_URL` | Local only, and never read by the app — see below |
 | `NEXT_PUBLIC_SITE_URL` | Absolute origin, no trailing slash |
 | `ADMIN_PASSWORD_HASH` | From `pnpm admin:password` |
 | `ADMIN_SESSION_SECRET` | 32+ random bytes — `openssl rand -base64 32` |
@@ -82,6 +83,26 @@ See `.env.example` for the full list. The ones that matter:
 Next only reads `.env` from the app directory, so `apps/web/next.config.ts`
 explicitly loads the repo-root `.env`. That keeps `pnpm dev` and
 `pnpm db:migrate` reading the same file.
+
+### Two databases, on purpose
+
+`DATABASE_URL` is the only one the app ever reads, and locally it stays pointed
+at Docker. The Neon database is reached exclusively through the `:neon` script
+variants, which read `NEON_DATABASE_URL` out of `.env`:
+
+```bash
+pnpm db:migrate:neon        # apply migrations to production
+pnpm db:seed:neon           # singleton rows
+pnpm catalog:import:neon    # load the catalog
+pnpm db:studio:neon         # browse it
+```
+
+The split means production is only touched when you deliberately type `:neon` —
+a stray `pnpm db:reset` can only ever hit the disposable local database, and it
+refuses a Neon URL outright regardless.
+
+On Vercel there is no `NEON_DATABASE_URL`: set `DATABASE_URL` itself to the
+pooled Neon string. The client picks the serverless driver off the hostname.
 
 ---
 

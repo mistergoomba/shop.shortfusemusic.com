@@ -93,6 +93,30 @@ const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN?.trim();
 /* ------------------------------------------------------------------ */
 
 /**
+ * The order categories appear in on the homepage and in the nav, by slug.
+ *
+ * Only used when a category row is first created -- the upsert below never
+ * overwrites `sortPosition`, so once the catalog is imported the admin screen
+ * is the source of truth and re-running the importer will not undo a reorder.
+ * Anything not listed here sorts after everything that is, alphabetically.
+ */
+const CATEGORY_ORDER = [
+  "t-shirts",
+  "albums",
+  "headwear",
+  "drinking-buddies",
+  "flags",
+  "tote-bags",
+  "photos",
+  "miscellaneous",
+];
+
+function categorySortPosition(slug: string): number {
+  const i = CATEGORY_ORDER.indexOf(slug);
+  return i === -1 ? CATEGORY_ORDER.length : i;
+}
+
+/**
  * Big Cartel has no notion of "low stock", so the import can only ever
  * produce IN_STOCK or SOLD_OUT. LOW_STOCK is assigned by hand in admin.
  */
@@ -236,13 +260,19 @@ async function main() {
   }
 
   const categoryIdByBcId = new Map<number, number>();
-  const sortedCategories = [...bcCategories.values()].sort((a, b) =>
-    a.name.localeCompare(b.name),
+  // Sorted by the intended display order, then by name for anything the
+  // CATEGORY_ORDER list does not mention.
+  const sortedCategories = [...bcCategories.values()].sort(
+    (a, b) =>
+      categorySortPosition(a.permalink) - categorySortPosition(b.permalink) ||
+      a.name.localeCompare(b.name),
   );
 
-  for (const [i, c] of sortedCategories.entries()) {
+  for (const c of sortedCategories) {
     if (DRY_RUN) {
-      console.log(`  category: ${c.name} (${c.permalink})`);
+      console.log(
+        `  category: ${c.name} (${c.permalink}) sort=${categorySortPosition(c.permalink)}`,
+      );
       stats.categories++;
       continue;
     }
@@ -251,7 +281,7 @@ async function main() {
       .values({
         name: c.name,
         slug: c.permalink,
-        sortPosition: i,
+        sortPosition: categorySortPosition(c.permalink),
         active: true,
         bigCartelId: c.id,
       })
