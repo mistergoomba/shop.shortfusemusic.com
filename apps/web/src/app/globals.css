@@ -1,0 +1,194 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/* Design tokens                                                       */
+/*                                                                     */
+/* Black / off-white / blood red. Red is the only accent -- never       */
+/* green -- so that product artwork supplies all the other colour.      */
+/* ------------------------------------------------------------------ */
+
+@theme {
+  --color-ink: #0a0908;
+  --color-ink-raised: #121110;
+  --color-ink-card: #171513;
+  --color-ink-line: #2a2724;
+
+  --color-bone: #e9e5de;
+  --color-bone-dim: #9c948a;
+  --color-bone-faint: #6b645c;
+
+  --color-blood: #c1121f;
+  --color-blood-bright: #e3202c;
+  --color-blood-deep: #7a0d14;
+
+  --font-display: var(--font-display), "Impact", sans-serif;
+  --font-body: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+
+  --tracking-stamp: 0.08em;
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-ink);
+    color: var(--color-bone);
+    font-family: var(--font-body);
+    /* Grain sits on the page, not on every surface -- the spec asks for
+       restraint, and stacking noise on cards too makes product art muddy. */
+    background-image: var(--texture-grain);
+    background-repeat: repeat;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-stamp);
+    font-weight: 700;
+  }
+
+  /* Visible focus everywhere. The gritty look must not cost keyboard users
+     the ability to see where they are. */
+  :focus-visible {
+    outline: 2px solid var(--color-blood-bright);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-blood);
+    color: var(--color-bone);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Texture                                                             */
+/* ------------------------------------------------------------------ */
+
+:root {
+  --texture-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+}
+
+@utility grain {
+  background-image: var(--texture-grain);
+}
+
+/* A scratched, screen-printed edge. Drawn with a clip-path rather than a
+   border image so it costs nothing to render and scales cleanly. */
+@utility edge-torn {
+  clip-path: polygon(
+    0% 2px,
+    6px 0%,
+    32% 3px,
+    64% 0px,
+    92% 4px,
+    100% 1px,
+    calc(100% - 2px) 40%,
+    100% calc(100% - 3px),
+    71% 100%,
+    38% calc(100% - 3px),
+    9% 100%,
+    0% calc(100% - 2px),
+    2px 55%
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Components                                                          */
+/* ------------------------------------------------------------------ */
+
+@utility stamp {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-stamp);
+  font-weight: 700;
+}
+
+/* The red rule under section headings in the approved design. */
+@utility rule-blood {
+  position: relative;
+}
+
+@layer components {
+  .rule-blood::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -0.4rem;
+    height: 2px;
+    width: 3.5rem;
+    background: var(--color-blood);
+  }
+
+  /* Rich product descriptions. Track listings arrive as <p> with <br>, so
+     line-height and paragraph rhythm carry most of the readability. */
+  .prose-sf {
+    color: var(--color-bone);
+    line-height: 1.7;
+  }
+  .prose-sf p {
+    margin-bottom: 1rem;
+  }
+  .prose-sf p:last-child {
+    margin-bottom: 0;
+  }
+  .prose-sf a {
+    color: var(--color-blood-bright);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .prose-sf a:hover {
+    color: var(--color-bone);
+    background: var(--color-blood-deep);
+  }
+  .prose-sf ul,
+  .prose-sf ol {
+    margin: 0 0 1rem 1.25rem;
+    list-style: disc;
+  }
+  .prose-sf ol {
+    list-style: decimal;
+  }
+  .prose-sf li {
+    margin-bottom: 0.25rem;
+  }
+  .prose-sf h2,
+  .prose-sf h3,
+  .prose-sf h4 {
+    margin: 1.5rem 0 0.5rem;
+    color: var(--color-bone);
+  }
+  .prose-sf blockquote {
+    border-left: 3px solid var(--color-blood);
+    padding-left: 1rem;
+    margin: 1rem 0;
+    color: var(--color-bone-dim);
+  }
+  .prose-sf hr {
+    border: 0;
+    border-top: 1px solid var(--color-ink-line);
+    margin: 1.5rem 0;
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "short-fuse-store",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@10.10.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @sf/web dev",
+    "build": "pnpm --filter @sf/web build",
+    "start": "pnpm --filter @sf/web start",
+    "lint": "pnpm --filter @sf/web lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "pnpm --filter @sf/db generate",
+    "db:migrate": "pnpm --filter @sf/db migrate",
+    "db:studio": "pnpm --filter @sf/db studio",
+    "db:seed": "pnpm --filter @sf/db seed",
+    "db:reset": "pnpm --filter @sf/db reset",
+    "catalog:import": "tsx scripts/import-big-cartel.ts",
+    "admin:password": "tsx scripts/hash-password.ts"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "unrs-resolver",
+      "@tailwindcss/oxide"
+    ]
+  },
+  "devDependencies": {
+    "@sf/core": "workspace:*",
+    "@sf/db": "workspace:*",
+    "@sf/shared": "workspace:*",
+    "@types/node": "^22.15.3",
+    "dotenv": "^17.4.2",
+    "tsx": "^4.23.12",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.11"
+  }
+}

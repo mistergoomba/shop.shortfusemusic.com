@@ -1,0 +1,23 @@
+node_modules/
+.next/
+dist/
+build/
+out/
+
+.env
+.env.local
+.env*.local
+!.env.example
+
+.DS_Store
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+coverage/
+.turbo/
+.vercel/
+*.tsbuildinfo
+
+# Local image mirror produced by the importer before Blob is configured
+apps/web/public/media/

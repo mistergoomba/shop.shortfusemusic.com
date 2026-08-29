@@ -1,0 +1,21 @@
+{
+  "name": "@sf/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@sf/shared": "workspace:*",
+    "sanitize-html": "^2.17.7"
+  },
+  "devDependencies": {
+    "@types/sanitize-html": "^2.16.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shortfuse-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: shortfuse
+      POSTGRES_PASSWORD: shortfuse
+      POSTGRES_DB: shortfuse
+    ports:
+      - "5433:5432"
+    volumes:
+      - shortfuse-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shortfuse -d shortfuse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  shortfuse-pgdata:

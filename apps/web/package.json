@@ -1,0 +1,33 @@
+{
+  "name": "@sf/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "@sf/core": "workspace:*",
+    "@sf/db": "workspace:*",
+    "@sf/shared": "workspace:*",
+    "@vercel/blob": "^2.8.0",
+    "iron-session": "^8.0.4",
+    "next": "^16.3.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "stripe": "^22.6.0",
+    "zod": "^4.5.2",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.4",
+    "dotenv": "^17.4.2",
+    "tailwindcss": "^4.3.3"
+  }
+}
