@@ -180,20 +180,23 @@ function shuffle<T>(items: readonly T[]): T[] {
 }
 
 /**
- * The FEATURED row, shuffled for variety.
+ * The FEATURED row.
  *
- * If the admin has marked anything featured, the shuffle is confined to those
- * — an editorial choice still decides *what* can appear, randomness only
- * decides which of them show today. With nothing marked (the state right after
- * an import) it draws from the whole purchasable catalog.
+ * Anything explicitly marked featured in admin is shown in the admin's own
+ * order, exactly and predictably. Randomising a hand-picked set only shuffles
+ * the order it appears in, which is not variety -- it is just an editorial
+ * decision the band cannot rely on.
  *
- * Sold-out products are excluded either way: the top of the homepage is the
+ * The shuffle survives only for the fallback case: with nothing marked
+ * featured (the state right after an import) the row draws at random from the
+ * whole purchasable catalog, so the homepage still has a top section rather
+ * than an empty gap.
+ *
+ * Sold-out products are excluded either way -- the top of the homepage is the
  * worst place to advertise something nobody can buy.
  *
- * Note this page is statically rendered with `revalidate = 300`, so the
- * selection changes roughly every five minutes rather than on every request.
- * That is the intended trade — real per-visitor randomness would mean giving
- * up static rendering of the homepage.
+ * Note the homepage is statically rendered with `revalidate = 300`, so the
+ * fallback's randomness only re-rolls every five minutes, not per visitor.
  */
 export const getFeaturedProducts = cache(
   async (limit = 8): Promise<ProductCardView[]> => {
@@ -205,7 +208,7 @@ export const getFeaturedProducts = cache(
     })) as unknown as ProductRow[];
 
     const curated = rows.map(toDetail).filter(isProductBuyable);
-    if (curated.length > 0) return shuffle(curated).slice(0, limit);
+    if (curated.length > 0) return curated.slice(0, limit);
 
     const all = await getAllProducts();
     return shuffle(all.filter(isProductBuyable)).slice(0, limit);
