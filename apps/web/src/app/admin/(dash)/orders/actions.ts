@@ -5,6 +5,7 @@ import { getDb, orders, eq } from "@sf/db";
 import { orderUpdateInput } from "@sf/shared";
 import { requireAdmin } from "@/lib/require-admin";
 import { stripe } from "@/lib/stripe";
+import { sendOrderConfirmation, sendOrderShipped } from "@/lib/email/send";
 
 export interface OrderActionState {
   error?: string;
@@ -62,8 +63,39 @@ export async function markShipped(id: number): Promise<OrderActionState> {
     .set({ status: "SHIPPED", shippedAt: new Date(), updatedAt: new Date() })
     .where(eq(orders.id, id));
 
+  // The order is shipped whether or not the customer can be told. Report a
+  // mail failure rather than hiding it, but never undo the status change.
+  const mail = await sendOrderShipped(id);
   revalidateOrder(id);
-  return { ok: "Marked as shipped." };
+
+  if (!mail.ok) {
+    return {
+      ok: `Marked as shipped, but the notification email did not send: ${mail.reason}`,
+    };
+  }
+  return {
+    ok: order.trackingNumber
+      ? "Marked as shipped and the customer has been emailed the tracking number."
+      : "Marked as shipped and the customer has been emailed. No tracking number was set — add one and re-send if you have it.",
+  };
+}
+
+/** Manual re-send from admin, for when a delivery failed or bounced. */
+export async function resendOrderEmail(
+  id: number,
+  kind: "confirmation" | "shipped",
+): Promise<OrderActionState> {
+  await requireAdmin();
+
+  const result =
+    kind === "confirmation"
+      ? await sendOrderConfirmation(id, { force: true })
+      : await sendOrderShipped(id, { force: true });
+
+  revalidateOrder(id);
+  return result.ok
+    ? { ok: `Re-sent the ${kind} email.` }
+    : { error: `Could not send: ${result.reason}` };
 }
 
 export async function cancelOrder(id: number): Promise<OrderActionState> {

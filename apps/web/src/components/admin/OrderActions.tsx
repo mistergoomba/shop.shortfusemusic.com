@@ -7,6 +7,7 @@ import {
   cancelOrder,
   markShipped,
   refundOrder,
+  resendOrderEmail,
   updateOrderDetails,
   type OrderActionState,
 } from "@/app/admin/(dash)/orders/actions";
@@ -20,6 +21,8 @@ interface OrderSummary {
   internalNotes: string | null;
   totalCents: number;
   hasPaymentIntent: boolean;
+  confirmationEmailSentAt: string | null;
+  shippedEmailSentAt: string | null;
 }
 
 function SaveDetails() {
@@ -220,6 +223,80 @@ export function OrderActions({ order }: { order: OrderSummary }) {
           </p>
         )}
       </div>
+
+      <EmailStatus order={order} />
     </Card>
+  );
+}
+
+/**
+ * Whether each customer email actually went out, and a way to try again.
+ *
+ * Delivery can fail for reasons that have nothing to do with the order — an
+ * unverified sending domain, a bounced address, Resend being down. Showing it
+ * here means a silent failure becomes a visible one.
+ */
+function EmailStatus({ order }: { order: OrderSummary }) {
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<OrderActionState | null>(null);
+
+  const rows = [
+    {
+      kind: "confirmation" as const,
+      label: "Order confirmation",
+      sentAt: order.confirmationEmailSentAt,
+      // Only meaningful once money has actually been taken.
+      relevant: order.status !== "PENDING" && order.status !== "CANCELED",
+    },
+    {
+      kind: "shipped" as const,
+      label: "Shipping notice",
+      sentAt: order.shippedEmailSentAt,
+      relevant: order.status === "SHIPPED",
+    },
+  ].filter((r) => r.relevant);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="mt-6 border-t border-ink-line pt-5">
+      <h3 className="mb-3 text-sm text-bone-dim">Customer emails</h3>
+
+      <ul className="flex flex-col gap-2">
+        {rows.map((row) => (
+          <li key={row.kind} className="flex flex-wrap items-center gap-3 text-sm">
+            <span className="text-bone">{row.label}</span>
+            {row.sentAt ? (
+              <span className="text-bone-faint">
+                sent {new Date(row.sentAt).toLocaleString()}
+              </span>
+            ) : (
+              <span className="text-blood-bright">not sent</span>
+            )}
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() =>
+                startTransition(async () => {
+                  setResult(await resendOrderEmail(order.id, row.kind));
+                })
+              }
+              className="ml-auto min-h-11 border border-ink-line px-3 text-sm text-bone-dim hover:text-bone disabled:opacity-50"
+            >
+              {row.sentAt ? "Send again" : "Send now"}
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {(result?.ok || result?.error) && (
+        <p
+          role="status"
+          className={`mt-3 text-sm ${result.error ? "text-blood-bright" : "text-bone-dim"}`}
+        >
+          {result.error ?? result.ok}
+        </p>
+      )}
+    </div>
   );
 }

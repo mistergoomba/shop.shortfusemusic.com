@@ -231,6 +231,14 @@ export const orders = pgTable(
     trackingNumber: varchar("tracking_number", { length: 120 }),
     internalNotes: text("internal_notes"),
 
+    // When each customer email actually went out. Null means never sent, which
+    // is what makes a failed send visible in admin and re-sendable, rather than
+    // silently lost.
+    confirmationEmailSentAt: timestamp("confirmation_email_sent_at", {
+      withTimezone: true,
+    }),
+    shippedEmailSentAt: timestamp("shipped_email_sent_at", { withTimezone: true }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     paidAt: timestamp("paid_at", { withTimezone: true }),

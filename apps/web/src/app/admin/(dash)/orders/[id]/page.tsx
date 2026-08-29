@@ -108,6 +108,9 @@ export default async function OrderDetailPage({
               internalNotes: order.internalNotes,
               totalCents: order.totalCents,
               hasPaymentIntent: Boolean(order.stripePaymentIntentId),
+              confirmationEmailSentAt:
+                order.confirmationEmailSentAt?.toISOString() ?? null,
+              shippedEmailSentAt: order.shippedEmailSentAt?.toISOString() ?? null,
             }}
           />
         </div>

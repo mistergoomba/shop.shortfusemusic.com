@@ -61,10 +61,21 @@ export default async function OrderPage({
             <h1 className="text-2xl text-blood-bright sm:text-3xl">
               Order confirmed — thanks
             </h1>
-            <p className="text-bone-dim">
-              A receipt is on its way to{" "}
-              <span className="text-bone">{order.email}</span>.
-            </p>
+            {/* Only promise an email once one has actually been sent. The
+                confirmation is mailed from the Stripe webhook, which may land
+                a moment after this page renders, and could fail outright. */}
+            {order.confirmationEmailSentAt ? (
+              <p className="text-bone-dim">
+                A confirmation is on its way to{" "}
+                <span className="text-bone">{order.email}</span>.
+              </p>
+            ) : (
+              <p className="text-bone-dim">
+                We&rsquo;ve got it. A confirmation should reach{" "}
+                <span className="text-bone">{order.email}</span> shortly — and
+                this page is always here either way.
+              </p>
+            )}
           </>
         ) : (
           <>

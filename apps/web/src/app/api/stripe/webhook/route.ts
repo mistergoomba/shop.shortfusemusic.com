@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { getDb, orders, webhookEvents, eq } from "@sf/db";
 import { env } from "@/lib/env";
 import { stripe } from "@/lib/stripe";
+import { sendOrderConfirmation } from "@/lib/email/send";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -151,6 +152,13 @@ async function markPaid(session: Stripe.Checkout.Session): Promise<void> {
           : (session.payment_intent?.id ?? null),
     })
     .where(eq(orders.id, orderId));
+
+  // Deliberately after the status update, and deliberately not awaited into
+  // the caller's error path: the payment is already recorded, so a mail
+  // failure must not make this handler return non-2xx and have Stripe retry
+  // an event we have applied. sendOrderConfirmation never throws, and records
+  // success on the order so a failure stays visible and re-sendable in admin.
+  await sendOrderConfirmation(orderId);
 }
 
 async function markCanceled(session: Stripe.Checkout.Session): Promise<void> {
