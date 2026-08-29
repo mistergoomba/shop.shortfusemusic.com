@@ -7,7 +7,6 @@ out/
 .env
 .env.local
 .env*.local
-!.env.example
 
 .DS_Store
 *.log
@@ -21,3 +20,8 @@ coverage/
 
 # Local image mirror produced by the importer before Blob is configured
 apps/web/public/media/
+
+# Vercel CLI writes .env.local (OIDC token) and appends a broad .env* rule.
+# Keep the broad rule, but the committed example must stay tracked.
+.env*
+!.env.example
