@@ -107,13 +107,28 @@ const CATEGORY_ORDER = [
   "drinking-buddies",
   "flags",
   "tote-bags",
-  "photos",
   "miscellaneous",
 ];
 
 function categorySortPosition(slug: string): number {
   const i = CATEGORY_ORDER.indexOf(slug);
   return i === -1 ? CATEGORY_ORDER.length : i;
+}
+
+/**
+ * Big Cartel categories folded into another category on import.
+ *
+ * The source export still has a Photos category with two products in it; the
+ * band decided those belong under Miscellaneous. Without this the category
+ * would be recreated and the products reassigned every time the importer runs.
+ * The folded-away category is never created at all.
+ */
+const CATEGORY_REMAP: Record<string, string> = {
+  photos: "miscellaneous",
+};
+
+function remapCategorySlug(slug: string): string {
+  return CATEGORY_REMAP[slug] ?? slug;
 }
 
 /**
@@ -256,10 +271,15 @@ async function main() {
   /* ---- Categories ---- */
   const bcCategories = new Map<number, BcCategory>();
   for (const p of catalog) {
-    for (const c of p.categories) bcCategories.set(c.id, c);
+    for (const c of p.categories) {
+      // A remapped category is never created; its products are reassigned
+      // to the target below.
+      if (CATEGORY_REMAP[c.permalink]) continue;
+      bcCategories.set(c.id, c);
+    }
   }
 
-  const categoryIdByBcId = new Map<number, number>();
+  const categoryIdBySlug = new Map<string, number>();
   // Sorted by the intended display order, then by name for anything the
   // CATEGORY_ORDER list does not mention.
   const sortedCategories = [...bcCategories.values()].sort(
@@ -290,7 +310,7 @@ async function main() {
         set: { name: c.name, slug: c.permalink, updatedAt: new Date() },
       })
       .returning({ id: categories.id });
-    categoryIdByBcId.set(c.id, row!.id);
+    categoryIdBySlug.set(c.permalink, row!.id);
     stats.categories++;
   }
 
@@ -310,9 +330,10 @@ async function main() {
       p.option_groups.some((g) => g.name.toLowerCase() !== "size");
     if (hasStyleGroup) stats.styleGroupsDropped++;
 
-    const bcCategoryId = p.categories[0]?.id;
-    const categoryId =
-      bcCategoryId !== undefined ? (categoryIdByBcId.get(bcCategoryId) ?? null) : null;
+    const bcCategory = p.categories[0];
+    const categoryId = bcCategory
+      ? (categoryIdBySlug.get(remapCategorySlug(bcCategory.permalink)) ?? null)
+      : null;
 
     const sizeOptions = sizeOptionsFor(p);
 

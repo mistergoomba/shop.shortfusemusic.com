@@ -1,6 +1,11 @@
 /**
  * Stock state always carries a word, never only a colour -- an accessibility
  * requirement from the spec and simply clearer besides.
+ *
+ * SOLD OUT and SALE are both red so they read at a glance against the dark
+ * cards, but they are deliberately different reds: SALE is a solid bright
+ * block (it wants the click), SOLD OUT is a darker filled block with a bright
+ * outline (it wants attention, not action). The label does the real work.
  */
 export function StockBadge({
   state,
@@ -12,7 +17,7 @@ export function StockBadge({
 
   const tone =
     state === "SOLD_OUT"
-      ? "bg-ink border border-bone-faint text-bone-dim"
+      ? "bg-blood-deep border border-blood-bright text-bone"
       : "bg-blood text-bone";
 
   return (
