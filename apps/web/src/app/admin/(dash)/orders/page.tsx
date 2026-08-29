@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ORDER_STATUS, formatCents, type OrderStatus } from "@sf/shared";
 import { listOrders } from "@/lib/admin-data";
 import { EmptyState, PageHeading, StatusPill } from "@/components/admin/ui";
+import { ReconcileButton } from "@/components/admin/ReconcileButton";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Orders" };
@@ -20,7 +21,7 @@ export default async function OrdersPage({
 
   return (
     <>
-      <PageHeading>Orders</PageHeading>
+      <PageHeading action={<ReconcileButton />}>Orders</PageHeading>
 
       <nav aria-label="Filter by status" className="mb-6 flex flex-wrap gap-2">
         <Link

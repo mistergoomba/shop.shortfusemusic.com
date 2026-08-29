@@ -1,5 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
+import type Stripe from "stripe";
 import {
   getDb,
   orders,
@@ -10,6 +11,7 @@ import {
   asc,
 } from "@sf/db";
 import type { PricedCart } from "@sf/core";
+import { sendOrderConfirmation } from "./email/send";
 
 /**
  * Human-friendly order number, e.g. "SF-1042".
@@ -119,6 +121,78 @@ export async function attachStripeSession(
     .update(orders)
     .set({ stripeCheckoutSessionId: sessionId, updatedAt: new Date() })
     .where(eq(orders.id, orderId));
+}
+
+export type ApplyPaidResult =
+  | { outcome: "applied"; orderNumber: string }
+  | { outcome: "skipped"; reason: string };
+
+/**
+ * Marks an order paid from a completed Stripe Checkout Session.
+ *
+ * Deliberately shared between the Stripe webhook and `pnpm stripe:reconcile`.
+ * Two separate implementations of "mark this order paid" would eventually
+ * disagree about which fields to copy across, and that disagreement would be
+ * a money bug. There is one, here.
+ *
+ * Safe to call more than once: only a PENDING order advances, so a redelivered
+ * event or a reconcile run over an already-paid order is a no-op.
+ */
+export async function applyPaidCheckoutSession(
+  session: Stripe.Checkout.Session,
+): Promise<ApplyPaidResult> {
+  const rawId = session.metadata?.orderId;
+  const orderId = rawId ? Number(rawId) : NaN;
+  if (!Number.isInteger(orderId) || orderId <= 0) {
+    throw new Error(`session ${session.id} has no usable orderId metadata`);
+  }
+  if (session.payment_status !== "paid") {
+    return { outcome: "skipped", reason: `payment_status is ${session.payment_status}` };
+  }
+
+  const db = getDb();
+  const existing = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });
+  if (!existing) throw new Error(`order ${orderId} not found`);
+
+  // Only PENDING advances. A refunded or canceled order is never resurrected
+  // by a late event arriving out of order.
+  if (existing.status !== "PENDING") {
+    return { outcome: "skipped", reason: `already ${existing.status}` };
+  }
+
+  const address = session.collected_information?.shipping_details?.address ?? null;
+  const shipName = session.collected_information?.shipping_details?.name ?? null;
+
+  await db
+    .update(orders)
+    .set({
+      status: "PAID",
+      paidAt: new Date(),
+      updatedAt: new Date(),
+      email: session.customer_details?.email ?? existing.email,
+      customerName: session.customer_details?.name ?? shipName,
+      shipName: shipName ?? session.customer_details?.name ?? null,
+      shipLine1: address?.line1 ?? null,
+      shipLine2: address?.line2 ?? null,
+      shipCity: address?.city ?? null,
+      shipState: address?.state ?? null,
+      shipPostalCode: address?.postal_code ?? null,
+      shipCountry: address?.country ?? existing.shipCountry,
+      // Stripe is authoritative on what was actually charged.
+      taxCents: session.total_details?.amount_tax ?? existing.taxCents,
+      totalCents: session.amount_total ?? existing.totalCents,
+      stripePaymentIntentId:
+        typeof session.payment_intent === "string"
+          ? session.payment_intent
+          : (session.payment_intent?.id ?? null),
+    })
+    .where(eq(orders.id, orderId));
+
+  // After the status update, and never allowed to throw: the payment is
+  // already recorded, so a mail failure must not undo or block it.
+  await sendOrderConfirmation(orderId);
+
+  return { outcome: "applied", orderNumber: existing.orderNumber };
 }
 
 export async function getOrderByPublicRef(ref: string) {

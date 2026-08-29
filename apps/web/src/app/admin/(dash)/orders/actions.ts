@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getDb, orders, eq } from "@sf/db";
+import { getDb, orders, eq, and, isNotNull, desc } from "@sf/db";
+import { applyPaidCheckoutSession } from "@/lib/orders";
 import { orderUpdateInput } from "@sf/shared";
 import { requireAdmin } from "@/lib/require-admin";
 import { stripe } from "@/lib/stripe";
@@ -78,6 +79,78 @@ export async function markShipped(id: number): Promise<OrderActionState> {
       ? "Marked as shipped and the customer has been emailed the tracking number."
       : "Marked as shipped and the customer has been emailed. No tracking number was set — add one and re-send if you have it.",
   };
+}
+
+/**
+ * Asks Stripe about every PENDING order and repairs any it says were paid.
+ *
+ * Webhooks are the only thing that marks an order PAID, and a webhook can fail
+ * to arrive: a misconfigured listener, an outage, a deploy at the wrong moment.
+ * When that happens a customer has been charged for an order that still reads
+ * PENDING and will never be packed. Stripe is the authority on what was
+ * actually paid, so this asks it directly.
+ *
+ * It applies the same transition the webhook does, through the shared
+ * applyPaidCheckoutSession(), so a repaired order is indistinguishable from one
+ * the webhook handled -- including the confirmation email. Orders Stripe agrees
+ * are unpaid are left alone; those are simply abandoned checkouts.
+ */
+export async function reconcilePendingOrders(): Promise<OrderActionState> {
+  await requireAdmin();
+  const db = getDb();
+
+  const pending = await db
+    .select()
+    .from(orders)
+    .where(
+      and(eq(orders.status, "PENDING"), isNotNull(orders.stripeCheckoutSessionId)),
+    )
+    .orderBy(desc(orders.id));
+
+  if (pending.length === 0) {
+    return { ok: "No pending orders to check." };
+  }
+
+  let repaired = 0;
+  let stillUnpaid = 0;
+  const failures: string[] = [];
+
+  for (const order of pending) {
+    try {
+      const session = await stripe().checkout.sessions.retrieve(
+        order.stripeCheckoutSessionId!,
+      );
+      if (session.payment_status !== "paid") {
+        stillUnpaid++;
+        continue;
+      }
+      const result = await applyPaidCheckoutSession(session);
+      if (result.outcome === "applied") repaired++;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[admin.reconcile] ${order.orderNumber}:`, message);
+      failures.push(order.orderNumber);
+    }
+  }
+
+  revalidatePath("/admin/orders");
+  revalidatePath("/admin");
+
+  const parts: string[] = [];
+  if (repaired > 0) {
+    parts.push(
+      `Recovered ${repaired} paid ${repaired === 1 ? "order that was" : "orders that were"} stuck pending.`,
+    );
+  }
+  if (stillUnpaid > 0) {
+    parts.push(`${stillUnpaid} genuinely unpaid (abandoned checkouts).`);
+  }
+  if (failures.length > 0) {
+    return {
+      error: `Could not check ${failures.join(", ")}. ${parts.join(" ")}`,
+    };
+  }
+  return { ok: parts.join(" ") || "Everything already matches Stripe." };
 }
 
 /** Manual re-send from admin, for when a delivery failed or bounced. */

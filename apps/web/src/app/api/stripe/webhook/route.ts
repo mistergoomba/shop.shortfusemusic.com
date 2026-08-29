@@ -3,7 +3,7 @@ import type Stripe from "stripe";
 import { getDb, orders, webhookEvents, eq } from "@sf/db";
 import { env } from "@/lib/env";
 import { stripe } from "@/lib/stripe";
-import { sendOrderConfirmation } from "@/lib/email/send";
+import { applyPaidCheckoutSession } from "@/lib/orders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     switch (event.type) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded":
-        await markPaid(event.data.object);
+        await applyPaidCheckoutSession(event.data.object);
         break;
 
       case "checkout.session.expired":
@@ -108,57 +108,6 @@ function orderIdFrom(session: Stripe.Checkout.Session): number | null {
   if (!raw) return null;
   const id = Number(raw);
   return Number.isInteger(id) && id > 0 ? id : null;
-}
-
-async function markPaid(session: Stripe.Checkout.Session): Promise<void> {
-  const orderId = orderIdFrom(session);
-  if (orderId === null) {
-    throw new Error(`checkout session ${session.id} has no usable orderId metadata`);
-  }
-  if (session.payment_status !== "paid") return;
-
-  const db = getDb();
-  const existing = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });
-  if (!existing) throw new Error(`order ${orderId} not found`);
-
-  // Only PENDING advances to PAID. A refunded or canceled order is never
-  // resurrected by a late event arriving out of order.
-  if (existing.status !== "PENDING") return;
-
-  const address = session.collected_information?.shipping_details?.address ?? null;
-  const shipName = session.collected_information?.shipping_details?.name ?? null;
-
-  await db
-    .update(orders)
-    .set({
-      status: "PAID",
-      paidAt: new Date(),
-      updatedAt: new Date(),
-      email: session.customer_details?.email ?? existing.email,
-      customerName: session.customer_details?.name ?? shipName,
-      shipName: shipName ?? session.customer_details?.name ?? null,
-      shipLine1: address?.line1 ?? null,
-      shipLine2: address?.line2 ?? null,
-      shipCity: address?.city ?? null,
-      shipState: address?.state ?? null,
-      shipPostalCode: address?.postal_code ?? null,
-      shipCountry: address?.country ?? existing.shipCountry,
-      // Stripe is authoritative on what was actually charged.
-      taxCents: session.total_details?.amount_tax ?? existing.taxCents,
-      totalCents: session.amount_total ?? existing.totalCents,
-      stripePaymentIntentId:
-        typeof session.payment_intent === "string"
-          ? session.payment_intent
-          : (session.payment_intent?.id ?? null),
-    })
-    .where(eq(orders.id, orderId));
-
-  // Deliberately after the status update, and deliberately not awaited into
-  // the caller's error path: the payment is already recorded, so a mail
-  // failure must not make this handler return non-2xx and have Stripe retry
-  // an event we have applied. sendOrderConfirmation never throws, and records
-  // success on the order so a failure stays visible and re-sendable in admin.
-  await sendOrderConfirmation(orderId);
 }
 
 async function markCanceled(session: Stripe.Checkout.Session): Promise<void> {
